@@ -1,0 +1,8 @@
+/build/
+*.o
+*.obj
+*.xcoff
+*.pef
+__pycache__/
+*.pyc
+.DS_Store
