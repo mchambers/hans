@@ -617,6 +617,13 @@ static void InitToolbox(void)
     Handle mbar;
     OSStatus err;
 
+    /* Grow the application heap to its full partition up front. Without
+       this the zone starts tiny and only expands lazily; MLTE checks
+       MaxBlock() before allocating and bails with memFullErr against the
+       ungrown zone, which silently killed all styling. */
+    MaxApplZone();
+    MoreMasters(); MoreMasters(); MoreMasters(); MoreMasters();
+
     InitGraf(&qd.thePort);
     InitFonts();
     InitWindows();
