@@ -1,5 +1,5 @@
 /*
- * Hans — preferences persistence and the Preferences dialog.
+ * Hans — preferences persistence.
  *
  * Preferences live in a resource file, "Hans Preferences", in the
  * System Folder's Preferences folder ('Pref' resource 128 holds a
@@ -7,7 +7,7 @@
  */
 #include "hans.h"
 
-#define kPrefsVersion 2
+#define kPrefsVersion 3
 #define kPrefResType  'Pref'
 #define kPrefResID    128
 
@@ -15,13 +15,8 @@ static void PrefsDefaults(void)
 {
     HansPrefs* p = &gPrefs;
     p->version = kPrefsVersion;
-    p->proxyHost[0] = 0;
-    p->proxyPort = 8079;
-    p->apiKey[0] = 0;
-    BlockMoveData("\pgpt-5-mini", p->model, 11);
     BlockMoveData("\pGeneva", p->fontName, 7);
     p->fontSize = 12;
-    p->llmEnabled = true;
     p->hasLibrary = false;
     p->libraryPath[0] = 0;
 }
@@ -112,81 +107,4 @@ Boolean PrefsGetLibrarySpec(FSSpec* spec, long* dirID)
         return false;
     *dirID = pb.dirInfo.ioDrDirID;
     return true;
-}
-
-/* ---------------- Preferences dialog ---------------- */
-
-static void SetItemStr(DialogRef dlg, short itemNo, ConstStr255Param s)
-{
-    short type; Handle item; Rect box;
-    GetDialogItem(dlg, itemNo, &type, &item, &box);
-    SetDialogItemText(item, s);
-}
-
-static void GetItemStr(DialogRef dlg, short itemNo, Str255 s)
-{
-    short type; Handle item; Rect box;
-    GetDialogItem(dlg, itemNo, &type, &item, &box);
-    GetDialogItemText(item, s);
-}
-
-void PrefsDialog(void)
-{
-    DialogRef dlg;
-    short itemHit;
-    Str255 s;
-
-    dlg = GetNewDialog(rPrefsDialog, NULL, (WindowPtr)-1L);
-    if (dlg == NULL) return;
-
-    SetDialogDefaultItem(dlg, kPrefsOK);
-    SetDialogCancelItem(dlg, kPrefsCancel);
-
-    SetItemStr(dlg, kPrefsHostText, gPrefs.proxyHost);
-    NumToString(gPrefs.proxyPort, s);
-    SetItemStr(dlg, kPrefsPortText, s);
-    SetItemStr(dlg, kPrefsKeyText, gPrefs.apiKey);
-    SetItemStr(dlg, kPrefsModelText, gPrefs.model);
-    SelectDialogItemText(dlg, kPrefsHostText, 0, 32767);
-
-    /* the enable-assistant checkbox */
-    {
-        short type; Handle item; Rect box;
-        GetDialogItem(dlg, kPrefsEnableLLM, &type, &item, &box);
-        SetControlValue((ControlHandle)item, gPrefs.llmEnabled ? 1 : 0);
-    }
-
-    do {
-        ModalDialog(NULL, &itemHit);
-        if (itemHit == kPrefsEnableLLM) {
-            short type; Handle item; Rect box;
-            GetDialogItem(dlg, kPrefsEnableLLM, &type, &item, &box);
-            SetControlValue((ControlHandle)item, !GetControlValue((ControlHandle)item));
-        }
-    } while (itemHit != kPrefsOK && itemHit != kPrefsCancel);
-
-    if (itemHit == kPrefsOK) {
-        long port;
-        short type; Handle item; Rect box;
-        Boolean wasEnabled = gPrefs.llmEnabled;
-
-        GetItemStr(dlg, kPrefsHostText, gPrefs.proxyHost);
-        GetItemStr(dlg, kPrefsPortText, s);
-        StringToNum(s, &port);
-        if (port > 0 && port < 65536) gPrefs.proxyPort = port;
-        GetItemStr(dlg, kPrefsKeyText, gPrefs.apiKey);
-        GetItemStr(dlg, kPrefsModelText, s);
-        if (s[0] > 63) s[0] = 63;
-        BlockMoveData(s, gPrefs.model, s[0] + 1);
-
-        GetDialogItem(dlg, kPrefsEnableLLM, &type, &item, &box);
-        gPrefs.llmEnabled = GetControlValue((ControlHandle)item) != 0;
-
-        PrefsSave();
-
-        /* if the assistant was just turned off, close its window */
-        if (wasEnabled && !gPrefs.llmEnabled)
-            ChatCloseIfOpen();
-    }
-    DisposeDialog(dlg);
 }

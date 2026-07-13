@@ -17,8 +17,6 @@ add_application(Hans
     src/library.c
     src/preview.c
     src/stylecheck.c
-    src/net.c
-    src/chat.c
     rsrc/hans.r
 )
 
@@ -33,9 +31,6 @@ target_link_libraries(Hans
     -lMenusLib
     -lDialogsLib
     -lTextCommon
-    -lOpenTransportLib
-    -lOpenTransportAppPPC
-    -lOpenTptInternetLib
     -lIconServicesLib
 )
 

@@ -50,8 +50,6 @@ resource 'MENU' (130, "Edit") {
         "Clear", noIcon, noKey, noMark, plain;
         "-", noIcon, noKey, noMark, plain;
         "Select All", noIcon, "A", noMark, plain;
-        "-", noIcon, noKey, noMark, plain;
-        "Preferences\0xC9", noIcon, noKey, noMark, plain;
     }
 };
 
@@ -87,8 +85,6 @@ resource 'MENU' (132, "Tools") {
     {
         "Check Style", noIcon, "K", noMark, plain;
         "Edit User Word List\0xC9", noIcon, noKey, noMark, plain;
-        "-", noIcon, noKey, noMark, plain;
-        "Writing Assistant\0xC9", noIcon, "L", noMark, plain;
     }
 };
 
@@ -106,8 +102,8 @@ resource 'DITL' (128) {
         { 116, 290, 136, 360 }, Button { enabled, "OK" };
         { 10, 20, 42, 360 }, StaticText { disabled, "Hans 1.0b1" };
         { 46, 20, 108, 360 }, StaticText { disabled,
-            "A quiet place to write. Markdown editing, style checking, "
-            "and a writing assistant \0xD1 for Mac OS 9." };
+            "A quiet place to write. Markdown editing and style "
+            "checking for Mac OS 9." };
     }
 };
 
@@ -137,40 +133,6 @@ resource 'DITL' (132) {
         { 76, 300, 96, 370 }, Button { enabled, "OK" };
         { 76, 210, 96, 290 }, Button { enabled, "Cancel" };
         { 10, 20, 68, 370 }, StaticText { disabled, "^0 ^1" };
-    }
-};
-
-/* ---------------- Preferences dialog ---------------- */
-
-resource 'DLOG' (130, "Preferences") {
-    { 76, 90, 356, 522 },
-    movableDBoxProc,
-    visible,
-    noGoAway,
-    0,
-    130,
-    "Preferences",
-    centerMainScreen
-};
-
-resource 'DITL' (130) {
-    {
-        { 246, 342, 266, 420 }, Button { enabled, "OK" };
-        { 246, 252, 266, 330 }, Button { enabled, "Cancel" };
-        { 13, 12, 29, 126 },   StaticText { disabled, "Proxy Address:" };
-        { 13, 132, 29, 310 },  EditText { enabled, "" };
-        { 41, 12, 57, 126 },   StaticText { disabled, "Proxy Port:" };
-        { 41, 132, 57, 196 },  EditText { enabled, "" };
-        { 69, 12, 85, 126 },   StaticText { disabled, "API Key:" };
-        { 69, 132, 85, 420 },  EditText { enabled, "" };
-        { 97, 12, 113, 126 },  StaticText { disabled, "Model:" };
-        { 97, 132, 113, 310 }, EditText { enabled, "" };
-        { 168, 12, 232, 420 }, StaticText { disabled,
-            "Hans talks to the OpenAI API through the Hans Proxy running on a "
-            "modern machine on your network. The API key may be left blank if "
-            "the proxy is configured with one." };
-        { 130, 12, 148, 420 }, CheckBox { enabled,
-            "Enable the writing assistant (Max)" };
     }
 };
 

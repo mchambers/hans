@@ -297,8 +297,6 @@ void AdjustMenus(void)
     if (m != NULL) {
         if (gMain.ed.hasFile) EnableItem(m, iCheckStyle);
         else DisableItem(m, iCheckStyle);
-        if (gPrefs.llmEnabled) EnableItem(m, iAssistant);
-        else DisableItem(m, iAssistant);
     }
 
     m = GetMenuHandle(mView);
@@ -357,9 +355,7 @@ static void DoMenuCommand(long menuResult)
         break;
 
     case mEdit:
-        if (item == iPreferences) {
-            PrefsDialog();
-        } else if (front == gMain.win && gMain.ed.txn != NULL) {
+        if (front == gMain.win && gMain.ed.txn != NULL) {
             /* The editor owns Edit-menu commands when the main window is
                frontmost. Copy and Select All are always fine; editing
                commands only apply once a note is open (no editing the
@@ -371,15 +367,13 @@ static void DoMenuCommand(long menuResult)
             case iCopy:      TXNCopy(gMain.ed.txn); break;
             case iPaste:     if (canEdit) { TXNPaste(gMain.ed.txn); gMain.ed.needRestyleAll = true; gMain.ed.dirty = true; } break;
             case iClear:     if (canEdit) { TXNClear(gMain.ed.txn); gMain.ed.needRestyleAll = true; gMain.ed.dirty = true; } break;
-            case iSelectAll: TXNSetSelection(gMain.ed.txn, kTXNStartOffset, kTXNEndOffset); break;
+            case iSelectAll: TXNSetSelection(gMain.ed.txn, 0, (long)TXNDataSize(gMain.ed.txn)); break;
             }
         } else {
             /* Route editing to whichever of our windows is frontmost. */
             WinTag* tag = (WinTag*)GetWindowTag(front);
-            if (tag != NULL) {
-                if (tag->kind == kWinChat)         ChatEditMenu(item);
-                else if (tag->kind == kWinPreview) PreviewEditMenu(item);
-            }
+            if (tag != NULL && tag->kind == kWinPreview)
+                PreviewEditMenu(item);
         }
         break;
 
@@ -395,7 +389,6 @@ static void DoMenuCommand(long menuResult)
         switch (item) {
         case iCheckStyle:    StyleCheckRun(&gMain); break;
         case iEditUserWords: StyleCheckOpenUserList(&gMain); break;
-        case iAssistant:     ChatShow(&gMain); break;
         }
         break;
     }
@@ -410,7 +403,6 @@ static void DispatchToWindow(WindowRef w, EventRecord* ev)
     if (tag == NULL) return;
     switch (tag->kind) {
     case kWinPreview:  PreviewHandleEvent(w, ev); break;
-    case kWinChat:     ChatHandleEvent(w, ev); break;
     case kWinStyle:    StyleCheckHandleEvent(w, ev); break;
     }
 }
@@ -422,7 +414,6 @@ static void CloseTaggedWindow(WindowRef w)
     switch (tag->kind) {
     case kWinMain:     gDone = true; break;   /* closing Hans quits */
     case kWinPreview:  PreviewClose(w); break;
-    case kWinChat:     ChatClose(w); break;
     case kWinStyle:    StyleCheckClose(w); break;
     }
 }
@@ -600,7 +591,6 @@ static void DoIdle(void)
         TXNIdle(gMain.ed.txn);
     EditorIdle(&gMain);
     StatusIdle();
-    ChatIdle();
 }
 
 static void AdjustCursor(EventRecord* ev)
@@ -664,11 +654,6 @@ int main(void)
     AdjustMenus();
 
     while (!gDone) {
-        /* Advance any in-flight assistant request and let Max animate,
-           every pass, so the network never blocks the UI. */
-        NetPump();
-        ChatPollNet();
-
         if (WaitNextEvent(everyEvent, &ev, 3, NULL)) {
             switch (ev.what) {
             case mouseDown:  DoMouseDown(&ev); break;
@@ -712,7 +697,6 @@ int main(void)
 
     EditorCloseFile(&gMain);   /* saves if dirty */
     PrefsSave();
-    NetShutdown();             /* abort any in-flight request, close OT */
     TXNTerminateTextension();
     return 0;
 }

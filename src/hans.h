@@ -50,19 +50,16 @@ enum {
     iPaste          = 5,
     iClear          = 6,
     iSelectAll      = 8,
-    iPreferences    = 10,
     mFormat         = 131,
     /* fonts are items 1..kNumFonts, then a divider, then sizes */
     mTools          = 132,
     iCheckStyle     = 1,
     iEditUserWords  = 2,
-    iAssistant      = 4,
     mView           = 133,
     iHideLibrary    = 1,
 
     rAboutAlert     = 128,
     rErrorAlert     = 129,
-    rPrefsDialog    = 130,
     rNameDialog     = 131,
     rConfirmAlert   = 132,
 
@@ -72,22 +69,11 @@ enum {
     rTextHedges     = 303
 };
 
-/* Prefs dialog items */
-enum {
-    kPrefsOK = 1, kPrefsCancel,
-    kPrefsHostLabel, kPrefsHostText,
-    kPrefsPortLabel, kPrefsPortText,
-    kPrefsKeyLabel,  kPrefsKeyText,
-    kPrefsModelLabel, kPrefsModelText,
-    kPrefsNote,
-    kPrefsEnableLLM
-};
-
 /* Name dialog items */
 enum { kNameOK = 1, kNameCancel, kNamePrompt, kNameText };
 
 /* ---------- Window kinds ---------- */
-enum { kWinMain = 1, kWinPreview, kWinChat, kWinStyle };
+enum { kWinMain = 1, kWinPreview, kWinStyle };
 
 /* Every per-window struct begins with a short 'kind'; a pointer to the
    struct is stored in the window's RefCon. */
@@ -99,13 +85,8 @@ typedef struct { short kind; } WinTag;
 /* ---------- Preferences ---------- */
 typedef struct {
     short   version;
-    Str255  proxyHost;      /* e.g. "192.168.1.10" */
-    long    proxyPort;      /* e.g. 8079 */
-    Str255  apiKey;         /* optional; proxy may hold the key instead */
-    Str63   model;          /* e.g. "gpt-5.2" */
     Str63   fontName;       /* editor font */
     short   fontSize;
-    Boolean llmEnabled;     /* writing assistant on/off */
     Boolean hasLibrary;
     Str255  libraryPath;    /* full path to library folder, colon separated */
 } HansPrefs;
@@ -169,7 +150,6 @@ void* GetWindowTag(WindowRef w);       /* NULL if none */
 /* prefs.c */
 void PrefsLoad(void);
 void PrefsSave(void);
-void PrefsDialog(void);
 Boolean PrefsGetLibrarySpec(FSSpec* spec, long* dirID);   /* resolve library folder */
 
 /* dialogutil.c */
@@ -242,30 +222,5 @@ void StyleCheckRun(MainWin* mw);
 void StyleCheckHandleEvent(WindowRef w, EventRecord* ev);
 void StyleCheckClose(WindowRef w);
 void StyleCheckOpenUserList(MainWin* mw);
-
-/* net.c — asynchronous HTTP POST to the companion proxy, driven by the
-   event loop. Start a request, then call NetPump() every pass and watch
-   NetState() for completion. Only one request runs at a time. */
-enum { kNetIdle = 0, kNetBusy, kNetDone, kNetFailed };
-
-OSStatus NetStart(ConstStr255Param host, short port, const char* path,
-                  const char* extraHeaders, const char* body, long bodyLen);
-void        NetPump(void);              /* advance the state machine a little */
-short       NetState(void);             /* kNetIdle/Busy/Done/Failed */
-Handle      NetResponseBody(void);      /* body only; valid when kNetDone */
-short       NetHTTPStatus(void);
-const char* NetConversationId(void);
-OSStatus    NetLastError(void);
-void        NetReset(void);             /* free and return to kNetIdle */
-void        NetShutdown(void);          /* NetReset + CloseOpenTransport */
-
-/* chat.c */
-void ChatShow(MainWin* mw);
-void ChatHandleEvent(WindowRef w, EventRecord* ev);
-void ChatEditMenu(short item);          /* Edit menu when the chat is frontmost */
-void ChatClose(WindowRef w);
-void ChatCloseIfOpen(void);             /* used when the assistant is disabled */
-void ChatIdle(void);
-void ChatPollNet(void);                 /* called every event-loop pass */
 
 #endif /* HANS_H */
