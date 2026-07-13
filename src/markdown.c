@@ -16,6 +16,12 @@
 
 static Boolean IsSpace(char c) { return c == ' ' || c == '\t'; }
 
+static Boolean IsWordChar(char c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z')
+        || (c >= 'A' && c <= 'Z') || c == '_';
+}
+
 static short AddSpan(MDSpan* spans, short n, long start, long end,
                      unsigned short flags)
 {
@@ -64,27 +70,49 @@ static short ParseInline(const char* p, long from, long len,
             }
         }
         else if ((c == '*' || c == '_') && i + 1 < len && p[i + 1] == c) {
-            /* strong: **text** or __text__ */
-            long j = i + 2;
-            while (j + 1 < len && !(p[j] == c && p[j + 1] == c)) j++;
-            if (j + 1 < len && p[j] == c && p[j + 1] == c && j > i + 2) {
-                n = AddSpan(spans, n, i, i + 2, kMDMarker);
-                n = AddSpan(spans, n, i + 2, j, kMDBold);
-                n = AddSpan(spans, n, j, j + 2, kMDMarker);
-                i = j + 2;
-                continue;
+            /* strong: **text** or __text__. The opener must be followed by
+               a non-space; the closer preceded by one — so "2 ** 3 ** 4"
+               stays plain. Underscores also need word boundaries outside,
+               so identifiers like __name__ mid_word__ don't false-match. */
+            Boolean canOpen = i + 2 < len && !IsSpace(p[i + 2])
+                && !(c == '_' && i > 0 && IsWordChar(p[i - 1]));
+            if (canOpen) {
+                long j = i + 2;
+                while (j + 1 < len) {
+                    if (p[j] == c && p[j + 1] == c && j > i + 2
+                        && !IsSpace(p[j - 1])
+                        && !(c == '_' && j + 2 < len && IsWordChar(p[j + 2])))
+                        break;
+                    j++;
+                }
+                if (j + 1 < len) {
+                    n = AddSpan(spans, n, i, i + 2, kMDMarker);
+                    n = AddSpan(spans, n, i + 2, j, kMDBold);
+                    n = AddSpan(spans, n, j, j + 2, kMDMarker);
+                    i = j + 2;
+                    continue;
+                }
             }
         }
         else if (c == '*' || c == '_') {
-            /* emphasis: *text* or _text_ */
-            long j = i + 1;
-            while (j < len && p[j] != c) j++;
-            if (j < len && j > i + 1) {
-                n = AddSpan(spans, n, i, i + 1, kMDMarker);
-                n = AddSpan(spans, n, i + 1, j, kMDItalic);
-                n = AddSpan(spans, n, j, j + 1, kMDMarker);
-                i = j + 1;
-                continue;
+            /* emphasis: *text* or _text_, same flanking rules as strong */
+            Boolean canOpen = i + 1 < len && !IsSpace(p[i + 1])
+                && !(c == '_' && i > 0 && IsWordChar(p[i - 1]));
+            if (canOpen) {
+                long j = i + 1;
+                while (j < len) {
+                    if (p[j] == c && j > i + 1 && !IsSpace(p[j - 1])
+                        && !(c == '_' && j + 1 < len && IsWordChar(p[j + 1])))
+                        break;
+                    j++;
+                }
+                if (j < len) {
+                    n = AddSpan(spans, n, i, i + 1, kMDMarker);
+                    n = AddSpan(spans, n, i + 1, j, kMDItalic);
+                    n = AddSpan(spans, n, j, j + 1, kMDMarker);
+                    i = j + 1;
+                    continue;
+                }
             }
         }
         else if (c == '[') {
@@ -112,6 +140,7 @@ short MDParseLine(const char* p, long len, MDSpan* spans, unsigned char* headLev
 {
     short n = 0;
     long i = 0;
+    Boolean inQuote = false;
 
     *headLevel = 0;
     if (len <= 0) return 0;
@@ -128,6 +157,7 @@ short MDParseLine(const char* p, long len, MDSpan* spans, unsigned char* headLev
         n = AddSpan(spans, n, i, (m < len && p[m] == ' ') ? m + 1 : m,
                     kMDMarker | kMDQuote);
         i = (m < len && p[m] == ' ') ? m + 1 : m;
+        inQuote = true;
     }
 
     /* ATX heading */
@@ -163,6 +193,11 @@ short MDParseLine(const char* p, long len, MDSpan* spans, unsigned char* headLev
             return n;
         }
     }
+
+    /* Quoted body text: emitted before the inline spans so the editor can
+       lay emphasis/code runs on top of the quote look. */
+    if (inQuote)
+        n = AddSpan(spans, n, i, len, kMDQuote);
 
     n = ParseInline(p, i, len, spans, n);
     return n;

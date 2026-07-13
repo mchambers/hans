@@ -136,9 +136,15 @@ static void BaseFontAttrs(TXNTypeAttributes attr[2])
 void EditorApplyBaseFont(MainWin* mw)
 {
     TXNTypeAttributes attr[2];
+    long total;
     if (mw->ed.txn == NULL) return;
+    /* Real offsets only: OS 9's MLTE silently ignores attribute calls made
+       with the kTXNEndOffset sentinel (same failure the restyler hit with
+       TXNGetData), which left the base font never applied. */
+    total = (long)TXNDataSize(mw->ed.txn);
+    if (total <= 0) return;
     BaseFontAttrs(attr);
-    TXNSetTypeAttributes(mw->ed.txn, 2, attr, kTXNStartOffset, kTXNEndOffset);
+    TXNSetTypeAttributes(mw->ed.txn, 2, attr, 0, total);
 }
 
 /* Reset the current insertion point to the base body style — base font and
@@ -174,9 +180,10 @@ void EditorRestyleAll(MainWin* mw)
     total = (long)TXNDataSize(txn);
     if (total <= 0) { mw->ed.needRestyleAll = false; return; }
 
-    /* Reset the whole document to the base look, then layer markup on top. */
-    ApplyRun(txn, kTXNStartOffset, kTXNEndOffset, normal, gPrefs.fontSize,
-             &kColBlack);
+    /* Reset the whole document to the base look, then layer markup on top.
+       Real offsets, not the kTXNEndOffset sentinel — OS 9 ignores it, which
+       used to leave stale bold/heading runs behind after edits. */
+    ApplyRun(txn, 0, total, normal, gPrefs.fontSize, &kColBlack);
 
     /* NB: TXNGetData needs real absolute offsets — passing kTXNEndOffset
        makes it fail on OS 9, which used to silently kill all restyling.
@@ -267,12 +274,12 @@ static void EditorShowPlaceholder(MainWin* mw)
     long n = 0; const char* p = hint;
     while (*p) { n++; p++; }
 
-    TXNSetSelection(mw->ed.txn, kTXNStartOffset, kTXNEndOffset);
+    TXNSetSelection(mw->ed.txn, 0, (long)TXNDataSize(mw->ed.txn));
     TXNClear(mw->ed.txn);
     TXNSetData(mw->ed.txn, kTXNTextData, (void*)hint, n,
                kTXNStartOffset, kTXNStartOffset);
-    ApplyRun(mw->ed.txn, kTXNStartOffset, kTXNEndOffset, italic,
-             gPrefs.fontSize, &kColQuote);
+    EditorApplyBaseFont(mw);         /* the hint text is now the document */
+    ApplyRun(mw->ed.txn, 0, n, italic, gPrefs.fontSize, &kColQuote);
     TXNSetSelection(mw->ed.txn, kTXNStartOffset, kTXNStartOffset);
 }
 

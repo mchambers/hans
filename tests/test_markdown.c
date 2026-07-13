@@ -14,7 +14,9 @@
 /* ---- stub of the bits of hans.h that markdown.c uses ---- */
 #define HANS_H                      /* make the real hans.h a no-op */
 typedef unsigned char Boolean;
-enum { false = 0, true = 1 };
+#if !defined(__STDC_VERSION__) || __STDC_VERSION__ < 202311L
+enum { false = 0, true = 1 };   /* C23 makes these keywords */
+#endif
 
 enum {
     kMDBold     = 0x0001,
@@ -104,6 +106,22 @@ int main(void)
 
     parse("_ital_");
     check("underscore italic", has_span(1, 5, kMDItalic));
+
+    /* --- emphasis flanking rules --- */
+    parse("2 * 3 * 4");
+    check("stars with spaces around are not emphasis", gN == 0);
+
+    parse("snake_case_name");
+    check("intra-word underscores are not emphasis", gN == 0);
+
+    parse("a __private__ name");
+    check("boundary underscores still bold", has_span(4, 11, kMDBold));
+
+    parse("mid__word__stars");
+    check("mid-word double underscore is not bold", gN == 0);
+
+    parse("*a *b*");
+    check("space-preceded star cannot close", has_span(1, 5, kMDItalic));
 
     parse("**unclosed");
     check("unclosed bold produces no bold span", gN == 0);

@@ -71,16 +71,14 @@ static void OutChar(char c)
 static void OutStr(const char* s) { while (*s) OutChar(*s++); }
 
 /* Classify a leading/inline marker span by its first source character. */
-enum { kMkDrop, kMkBullet, kMkQuote };
+enum { kMkDrop, kMkBullet, kMkQuote, kMkNumber };
 
 static short ClassifyMarker(const char* line, const MDSpan* sp, long lineLen)
 {
     char c = line[sp->start];
     long spanLen = sp->end - sp->start;
     if (c == '>') return kMkQuote;
-    if ((c == '-' || c == '+' || (c == '*' && spanLen == 2))
-        && spanLen == 2 && sp->start == 0)
-        return kMkBullet;
+    if (c >= '0' && c <= '9') return kMkNumber;     /* "12. " — keep the number */
     /* leading bullet may be indented: allow leading spaces before it */
     if ((c == '-' || c == '+' || c == '*') && spanLen == 2) {
         long i;
@@ -105,7 +103,8 @@ static void RenderLine(const char* line, long len)
     /* per-source-char classification */
     static unsigned char sflags[1024];
     static unsigned char drop[1024];
-    Boolean emitBullet = false, emitQuote = false;
+    Boolean emitQuote = false;
+    long bulletPos = -1, quotePos = -1;
 
     if (len > 1024) len = 1024;      /* very long lines: render head only */
 
@@ -120,8 +119,9 @@ static void RenderLine(const char* line, long len)
         if (sp->flags & kMDRule) { isRule = true; }
         if (sp->flags & kMDMarker) {
             short cls = ClassifyMarker(line, sp, len);
-            if (cls == kMkBullet) emitBullet = true;
-            else if (cls == kMkQuote) emitQuote = true;
+            if (cls == kMkNumber) continue;          /* keep "12. " as-is */
+            if (cls == kMkBullet) bulletPos = sp->start;
+            else if (cls == kMkQuote) { quotePos = sp->start; emitQuote = true; }
             for (j = sp->start; j < sp->end && j < len; j++) drop[j] = 1;
         } else {
             unsigned short f = sp->flags & (kMDBold|kMDItalic|kMDCode|kMDLink);
@@ -137,14 +137,15 @@ static void RenderLine(const char* line, long len)
         return;
     }
 
-    if (emitQuote) OutStr("   ");
-    if (emitBullet) { OutChar((char)0xA5); OutChar(' '); OutChar(' '); }
-
-    /* Emit kept characters, tracking contiguous style runs. */
+    /* Emit kept characters, tracking contiguous style runs. The quote
+       indent / list bullet are emitted at their marker's source position,
+       so indented (nested) items keep their leading whitespace. */
     {
         unsigned short curFlags = 0;
         long runStart = gOutLen;
         for (j = 0; j < len; j++) {
+            if (j == quotePos) OutStr("   ");
+            if (j == bulletPos) { OutChar((char)0xA5); OutChar(' '); OutChar(' '); }
             if (drop[j]) continue;
             if (sflags[j] != curFlags) {
                 if (curFlags != 0) RunAdd(runStart, gOutLen, curFlags, 0);
@@ -235,10 +236,13 @@ static void BuildPreview(MainWin* mw)
     HUnlock(src);
     DisposeHandle(src);
 
-    /* Push rendered text into the read-only view. */
+    /* Push rendered text into the read-only view, replacing whatever a
+       previous build left there. Real offsets only — OS 9's MLTE silently
+       fails on the kTXNEndOffset sentinel (see EditorRestyleAll), which
+       used to leave the preview empty. */
     HLock(gOut);
     TXNSetData(gPreview.txn, kTXNTextData, *gOut, gOutLen,
-               kTXNStartOffset, kTXNEndOffset);
+               0, (long)TXNDataSize(gPreview.txn));
     HUnlock(gOut);
 
     /* Base font over everything, then layer the runs. */
@@ -250,7 +254,7 @@ static void BuildPreview(MainWin* mw)
         ba[1].tag = kTXNQDFontSizeAttribute;
         ba[1].size = kTXNFontSizeAttributeSize;
         ba[1].data.dataValue = ((UInt32)base) << 16;
-        TXNSetTypeAttributes(gPreview.txn, 2, ba, kTXNStartOffset, kTXNEndOffset);
+        TXNSetTypeAttributes(gPreview.txn, 2, ba, 0, gOutLen);
     }
 
     for (i = 0; i < gRunCount; i++) {
@@ -273,7 +277,13 @@ static void BuildPreview(MainWin* mw)
     TXNSetSelection(gPreview.txn, kTXNStartOffset, kTXNStartOffset);
     TXNShowSelection(gPreview.txn, false);
     SetPreviewReadOnly(true);     /* lock it back down */
+
+    /* Repaint now. TXNForceUpdate alone doesn't reliably post an update
+       event (same as the editor after a load), so rebuilds — e.g. following
+       a note switch — otherwise kept showing the old render. */
+    SetPort(gPreview.win);
     TXNForceUpdate(gPreview.txn);
+    TXNDraw(gPreview.txn, NULL);
 }
 
 static void PreviewLayout(Rect* frame)
@@ -368,7 +378,7 @@ void PreviewEditMenu(short item)
     if (gPreview.txn == NULL) return;
     switch (item) {
     case iCopy:      TXNCopy(gPreview.txn); break;
-    case iSelectAll: TXNSetSelection(gPreview.txn, kTXNStartOffset, kTXNEndOffset); break;
+    case iSelectAll: TXNSetSelection(gPreview.txn, 0, (long)TXNDataSize(gPreview.txn)); break;
     }
 }
 
