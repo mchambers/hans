@@ -568,15 +568,6 @@ static Boolean IsNavigationKey(char c)
         || c == 0x10;                    /* function keys */
 }
 
-/* Characters that can complete a Markdown construct. Typing one skips the
-   restyle debounce, so closing **bold** (or finishing a # heading marker)
-   styles on the very next idle pass instead of after the typing pause.
-   Rare in prose, so this adds no per-keystroke restyle cost. */
-static Boolean IsMarkerChar(char c)
-{
-    return c == '*' || c == '_' || c == '`' || c == '#' || c == '>';
-}
-
 void EditorKey(MainWin* mw, EventRecord* ev)
 {
     char c = ev->message & charCodeMask;
@@ -592,8 +583,6 @@ void EditorKey(MainWin* mw, EventRecord* ev)
     gAutosaveHeld = false;              /* new edits re-arm autosave */
     mw->ed.needRestyleLine = true;      /* typing restyles only the caret line */
     mw->ed.lastEditTicks = TickCount();
-    if (IsMarkerChar(c))                /* backdate past the debounce: the */
-        mw->ed.lastEditTicks -= kRestyleDelay + 1;   /* next idle restyles */
 }
 
 void EditorClick(MainWin* mw, EventRecord* ev)
